@@ -10,3 +10,4 @@ build_configuration
 lib/libimagequant.a
 *.obj
 *.lib
+config.mk

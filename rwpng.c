@@ -65,21 +65,19 @@ void rwpng_version_info(FILE *fp)
 {
     const char *pngver = png_get_header_ver(NULL);
 
-    fprintf(fp, "   Compiled with libpng %s; using libpng %s.\n",
-      PNG_LIBPNG_VER_STRING, pngver);
+#if USE_COCOA
+    fprintf(fp, "   Using libpng %s and Apple Cocoa image reader.\n", pngver);
+#elif USE_LCMS
+    fprintf(fp, "   Using libpng %s with Little CMS color profile support.\n", pngver);
+#else
+    fprintf(fp, "   Using libpng %s and Apple Cocoa image reader.\n", pngver);
+#endif
 
 #if PNG_LIBPNG_VER < 10600
     if (strcmp(pngver, "1.3.") < 0) {
         fputs("\nWARNING: Your version of libpng is outdated and may produce corrupted files.\n"
-              "Please recompile pngquant with newer version of libpng (1.5 or later.)\n", fp);
+              "Please recompile pngquant with a newer version of libpng (1.5 or later).\n", fp);
     }
-#endif
-
-#if USE_COCOA
-    fputs("   Compiled with Apple Cocoa image reader.\n", fp);
-#endif
-#if USE_LCMS
-    fputs("   Compiled with Little CMS color profile support.\n", fp);
 #endif
 }
 
@@ -314,10 +312,10 @@ pngquant_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainprog_ptr
 
     /* build RGB profile from cHRM and gAMA */
     if (hInProfile == NULL && COLOR_PNG &&
-        !png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB) && 
-        png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) && 
+        !png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB) &&
+        png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) &&
         png_get_valid(png_ptr, info_ptr, PNG_INFO_cHRM)) {
-        
+
         cmsCIExyY WhitePoint;
         cmsCIExyYTRIPLE Primaries;
 
@@ -340,7 +338,7 @@ pngquant_error rwpng_read_image24_libpng(FILE *infile, png24_image *mainprog_ptr
 
     /* transform image to sRGB colorspace */
     if (hInProfile != NULL) {
-        
+
         cmsHPROFILE hOutProfile = cmsCreate_sRGBProfile();
         cmsHTRANSFORM hTransform = cmsCreateTransform(hInProfile, TYPE_RGBA_8,
                                                       hOutProfile, TYPE_RGBA_8,
@@ -442,6 +440,7 @@ static pngquant_error rwpng_write_image_init(rwpng_png_image *mainprog_ptr, png_
     }
 
     png_set_compression_level(*png_ptr_p, fast_compression ? Z_BEST_SPEED : Z_BEST_COMPRESSION);
+    png_set_compression_mem_level(*png_ptr_p, fast_compression ? 9 : 5); // judging by optipng results, smaller mem makes libpng compress slightly better
 
     return SUCCESS;
 }
@@ -516,7 +515,7 @@ pngquant_error rwpng_write_image8(FILE *outfile, png8_image *mainprog_ptr)
         memcpy(pngchunk.name, chunk->name, 5);
         png_set_unknown_chunks(png_ptr, info_ptr, &pngchunk, 1);
 
-        #if PNG_LIBPNG_VER < 10600
+        #if defined(PNG_HAVE_IHDR) && PNG_LIBPNG_VER < 10600
         png_set_unknown_chunk_location(png_ptr, info_ptr, chunk_num, pngchunk.location ? pngchunk.location : PNG_HAVE_IHDR);
         #endif
 
